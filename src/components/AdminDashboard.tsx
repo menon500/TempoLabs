@@ -30,10 +30,11 @@ import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 import EventCreationForm from "./EventCreationForm";
-import RegistrationTable, {
+import RegistrationTable from "./RegistrationTable";
+import {
   getStatusBadgeColor,
   getPaymentStatusBadgeColor,
-} from "./RegistrationTable";
+} from "@/lib/registration-utils";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
@@ -399,6 +400,7 @@ export default function AdminDashboard() {
                 registrations={pendingRegistrations}
                 onUpdateStatus={handleUpdateStatus}
                 onUpdatePayment={handleUpdatePayment}
+                showManualRegistration
               />
             </div>
           )}
