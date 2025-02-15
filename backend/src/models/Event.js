@@ -11,6 +11,10 @@ export const Event = sequelize.define("Event", {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
   date: {
     type: DataTypes.DATE,
     allowNull: false,
@@ -26,5 +30,8 @@ export const Event = sequelize.define("Event", {
   location: {
     type: DataTypes.JSONB,
     allowNull: false,
+    defaultValue: {
+      address: "",
+    },
   },
 });

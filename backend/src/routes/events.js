@@ -8,24 +8,49 @@ router.get("/", async (req, res) => {
     const events = await Event.findAll();
     res.json(events);
   } catch (error) {
+    console.error("Error fetching events:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 router.post("/", async (req, res) => {
   try {
-    const event = await Event.create(req.body);
+    const eventData = {
+      name: req.body.name,
+      description: req.body.description,
+      date: req.body.date,
+      price: parseFloat(req.body.price),
+      capacity: parseInt(req.body.capacity),
+      location: {
+        address: req.body.location?.address || "",
+      },
+    };
+
+    const event = await Event.create(eventData);
     res.status(201).json(event);
   } catch (error) {
+    console.error("Error creating event:", error);
     res.status(400).json({ error: error.message });
   }
 });
 
 router.put("/:id", async (req, res) => {
   try {
-    const [updated] = await Event.update(req.body, {
+    const eventData = {
+      name: req.body.name,
+      description: req.body.description,
+      date: req.body.date,
+      price: parseFloat(req.body.price),
+      capacity: parseInt(req.body.capacity),
+      location: {
+        address: req.body.location?.address || "",
+      },
+    };
+
+    const [updated] = await Event.update(eventData, {
       where: { id: req.params.id },
     });
+
     if (updated) {
       const updatedEvent = await Event.findByPk(req.params.id);
       res.json(updatedEvent);
@@ -33,6 +58,7 @@ router.put("/:id", async (req, res) => {
       res.status(404).json({ error: "Event not found" });
     }
   } catch (error) {
+    console.error("Error updating event:", error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -48,6 +74,7 @@ router.delete("/:id", async (req, res) => {
       res.status(404).json({ error: "Event not found" });
     }
   } catch (error) {
+    console.error("Error deleting event:", error);
     res.status(400).json({ error: error.message });
   }
 });

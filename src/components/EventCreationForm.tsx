@@ -1,6 +1,5 @@
 import React from "react";
 import { useForm } from "react-hook-form";
-import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
@@ -8,20 +7,21 @@ import { Textarea } from "./ui/textarea";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, MapPin } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { cn } from "../lib/utils";
-import { useEventStore } from "../lib/store";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 
 const eventFormSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  name: z.string().min(1, "Nome é obrigatório"),
   description: z.string().min(1, "Descrição é obrigatória"),
   date: z.date(),
   price: z.string().min(1, "Preço é obrigatório"),
   capacity: z.string().min(1, "Capacidade é obrigatória"),
-  location: z.string().min(1, "Localização é obrigatória"),
-  backgroundImage: z.string().optional(),
+  location: z.object({
+    address: z.string().min(1, "Endereço é obrigatório"),
+  }),
 });
 
 type EventFormData = z.infer<typeof eventFormSchema>;
@@ -29,74 +29,77 @@ type EventFormData = z.infer<typeof eventFormSchema>;
 interface EventCreationFormProps {
   onSubmit?: (data: EventFormData) => void;
   initialData?: Partial<EventFormData>;
-  isOpen?: boolean;
 }
 
 export default function EventCreationForm({
   onSubmit = (data) => console.log(data),
   initialData,
-  isOpen = true,
 }: EventCreationFormProps) {
   const {
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<EventFormData>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
-      title: initialData?.title || "",
+      name: initialData?.name || "",
       description: initialData?.description || "",
       date: initialData?.date || new Date(),
       price: initialData?.price || "",
       capacity: initialData?.capacity || "",
-      location: initialData?.location || "",
-      backgroundImage: initialData?.backgroundImage || "",
+      location: initialData?.location || {
+        address: "",
+      },
     },
   });
 
   const [date, setDate] = React.useState<Date>(initialData?.date || new Date());
-  const [imagePreview, setImagePreview] = React.useState<string | null>(
-    initialData?.backgroundImage || null,
-  );
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Arquivo muito grande. Tamanho máximo: 5MB");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const imageUrl = reader.result as string;
-        setImagePreview(imageUrl);
-        setValue("backgroundImage", imageUrl);
-        useEventStore.getState().setBackgroundImage(imageUrl);
+  const handleFormSubmit = (data: EventFormData) => {
+    try {
+      const formattedData = {
+        ...data,
+        price: parseFloat(data.price),
+        capacity: parseInt(data.capacity),
+        date: date.toISOString(),
       };
-      reader.readAsDataURL(file);
+      onSubmit(formattedData);
+    } catch (error) {
+      console.error("Error formatting form data:", error);
+      alert(
+        "Erro ao processar dados do formulário. Por favor, verifique os campos.",
+      );
     }
   };
 
   return (
-    <Card className="w-full max-w-2xl p-4 md:p-6 bg-card shadow-lg overflow-y-auto max-h-[90vh]">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <div className="space-y-4 max-h-[80vh] overflow-y-auto p-4">
+      <DialogHeader>
+        <DialogTitle>
+          {initialData ? "Editar Evento" : "Criar Novo Evento"}
+        </DialogTitle>
+        <DialogDescription>
+          Preencha os detalhes do evento abaixo. Todos os campos marcados com *
+          são obrigatórios.
+        </DialogDescription>
+      </DialogHeader>
+
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="title">Título do Evento</Label>
+          <Label htmlFor="name">Nome do Evento *</Label>
           <Input
-            id="title"
-            placeholder="Digite o título do evento"
-            {...register("title")}
+            id="name"
+            placeholder="Digite o nome do evento"
+            {...register("name")}
           />
-          {errors.title && (
-            <p className="text-sm text-red-500">{errors.title.message}</p>
+          {errors.name && (
+            <p className="text-sm text-red-500">{errors.name.message}</p>
           )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Descrição</Label>
+          <Label htmlFor="description">Descrição *</Label>
           <Textarea
             id="description"
             placeholder="Digite a descrição do evento"
@@ -108,7 +111,7 @@ export default function EventCreationForm({
         </div>
 
         <div className="space-y-2">
-          <Label>Data do Evento</Label>
+          <Label>Data do Evento *</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -140,7 +143,7 @@ export default function EventCreationForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="price">Preço (R$)</Label>
+            <Label htmlFor="price">Preço (R$) *</Label>
             <Input
               id="price"
               type="number"
@@ -155,7 +158,7 @@ export default function EventCreationForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="capacity">Capacidade Máxima</Label>
+            <Label htmlFor="capacity">Capacidade Máxima *</Label>
             <Input
               id="capacity"
               type="number"
@@ -170,48 +173,25 @@ export default function EventCreationForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="location">Localização</Label>
+          <Label htmlFor="location.address">Endereço *</Label>
           <Input
-            id="location"
+            id="location.address"
             placeholder="Digite o endereço do evento"
-            {...register("location")}
+            {...register("location.address")}
           />
-          {errors.location && (
-            <p className="text-sm text-red-500">{errors.location.message}</p>
+          {errors.location?.address && (
+            <p className="text-sm text-red-500">
+              {errors.location.address.message}
+            </p>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="backgroundImage">Imagem do Evento</Label>
-          <Input
-            id="backgroundImage"
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="flex-1"
-          />
-          {imagePreview && (
-            <div className="mt-2">
-              <img
-                src={imagePreview}
-                alt="Preview"
-                className="max-h-40 rounded-md object-cover"
-              />
-            </div>
-          )}
+        <div className="pt-4">
+          <Button type="submit" className="w-full">
+            {initialData ? "Salvar Alterações" : "Criar Evento"}
+          </Button>
         </div>
-
-        <div className="h-[300px] w-full bg-gray-100 rounded-lg flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <MapPin className="w-8 h-8 mx-auto mb-2" />
-            <p>Visualização do Mapa</p>
-          </div>
-        </div>
-
-        <Button type="submit" className="w-full">
-          {initialData ? "Salvar Alterações" : "Criar Evento"}
-        </Button>
       </form>
-    </Card>
+    </div>
   );
 }
