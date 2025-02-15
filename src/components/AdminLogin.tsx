@@ -18,7 +18,8 @@ export default function AdminLogin({
 
   const handleLogin = (data: any) => {
     // Em uma aplicação real, você validaria as credenciais aqui
-    if (data.username === "admin" && data.password === "admin") {
+    // TODO: Implement proper authentication
+    if (data.username && data.password) {
       navigate("/admin/dashboard");
     }
   };

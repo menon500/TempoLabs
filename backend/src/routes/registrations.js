@@ -23,24 +23,35 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
+    // Check event capacity
+    const registrationCount = await Registration.count({
+      where: {
+        eventId: event.id,
+        status: { [Op.ne]: "cancelado" },
+      },
+    });
+
+    if (registrationCount >= event.capacity) {
+      return res.status(400).json({ error: "Event is at full capacity" });
+    }
+
     // Create registration with event price and current date
     const registration = await Registration.create({
       ...req.body,
       amount: event.price,
-      date: new Date()
+      date: new Date(),
+      status: "pendente",
+      paymentStatus: "não pago",
     });
 
     // Return registration with event data
     const registrationWithEvent = await Registration.findByPk(registration.id, {
-      include: [Event]
+      include: [Event],
     });
 
     res.status(201).json(registrationWithEvent);
   } catch (error) {
-  try {
-    const registration = await Registration.create(req.body);
-    res.status(201).json(registration);
-  } catch (error) {
+    console.error("Error creating registration:", error);
     res.status(400).json({ error: error.message });
   }
 });

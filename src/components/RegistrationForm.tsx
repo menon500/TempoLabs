@@ -57,30 +57,7 @@ interface RegistrationFormProps {
   selectedEvent?: string;
 }
 
-const defaultEvents: Event[] = [
-  {
-    id: "1",
-    name: "Summer Conference 2024",
-    date: "2024-06-15",
-    price: 299.99,
-    location: {
-      latitude: 40.7128,
-      longitude: -74.006,
-      address: "123 Broadway, New York, NY 10007",
-    },
-  },
-  {
-    id: "2",
-    name: "Tech Workshop",
-    date: "2024-07-01",
-    price: 149.99,
-    location: {
-      latitude: 37.7749,
-      longitude: -122.4194,
-      address: "456 Market St, San Francisco, CA 94105",
-    },
-  },
-];
+const defaultEvents: Event[] = [];
 
 import { api } from "@/lib/api";
 
