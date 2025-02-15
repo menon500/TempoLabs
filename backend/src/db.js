@@ -5,7 +5,7 @@ dotenv.config();
 
 export const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
-  logging: false,
+  logging: true, // Temporariamente ativado para debug
   pool: {
     max: 5,
     min: 0,
@@ -13,13 +13,7 @@ export const sequelize = new Sequelize(process.env.DATABASE_URL, {
     idle: 10000,
   },
   dialectOptions: {
-    ssl:
-      process.env.NODE_ENV === "production"
-        ? {
-            require: true,
-            rejectUnauthorized: false,
-          }
-        : false,
+    ssl: false,
   },
 });
 
@@ -28,6 +22,11 @@ sequelize
   .authenticate()
   .then(() => {
     console.log("Database connection has been established successfully.");
+    // Sync models with database
+    return sequelize.sync({ force: true }); // Cuidado: isso vai recriar as tabelas
+  })
+  .then(() => {
+    console.log("Database synchronized successfully.");
   })
   .catch((err) => {
     console.error("Unable to connect to the database:", err);

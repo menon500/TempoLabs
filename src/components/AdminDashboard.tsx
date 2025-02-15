@@ -14,19 +14,13 @@ import {
   Users,
   Wallet,
   FileSpreadsheet,
-  Download,
   Ban,
-  FileText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Dialog, DialogContent } from "./ui/dialog";
 import EventCreationForm from "./EventCreationForm";
 import RegistrationTable from "./RegistrationTable";
-import {
-  getStatusBadgeColor,
-  getPaymentStatusBadgeColor,
-} from "@/lib/registration-utils";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { api } from "@/lib/api";
@@ -38,8 +32,6 @@ interface Event {
   price: number;
   capacity: number;
   location: {
-    latitude: number;
-    longitude: number;
     address: string;
   };
 }
@@ -70,6 +62,8 @@ export default function AdminDashboard() {
   const [selectedTab, setSelectedTab] = React.useState("dashboard");
   const [events, setEvents] = React.useState<Event[]>([]);
   const [registrations, setRegistrations] = React.useState<Registration[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     loadData();
@@ -77,23 +71,31 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
       const [eventsData, registrationsData] = await Promise.all([
         api.events.list(),
         api.registrations.list(),
       ]);
-      setEvents(eventsData);
-      setRegistrations(registrationsData);
+
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      setRegistrations(
+        Array.isArray(registrationsData) ? registrationsData : [],
+      );
     } catch (error) {
       console.error("Error loading data:", error);
+      setError("Erro ao carregar dados. Por favor, tente novamente.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleCreateEvent = async (data: EventFormData) => {
+  const handleCreateEvent = async (data: any) => {
     try {
       const newEvent = await api.events.create(data);
       setEvents([...events, newEvent]);
       setShowEventForm(false);
-      loadData(); // Reload all data
+      loadData();
     } catch (error) {
       console.error("Error creating event:", error);
       alert("Erro ao criar evento. Por favor, tente novamente.");
@@ -102,15 +104,16 @@ export default function AdminDashboard() {
 
   const handleUpdateEvent = async (data: any) => {
     try {
-      const updatedEvent = await api.events.update(editingEvent?.id!, data);
+      if (!editingEvent?.id) return;
+      const updatedEvent = await api.events.update(editingEvent.id, data);
       setEvents(
         events.map((event) =>
-          event.id === editingEvent?.id ? updatedEvent : event,
+          event.id === editingEvent.id ? updatedEvent : event,
         ),
       );
       setShowEventForm(false);
       setEditingEvent(null);
-      loadData(); // Reload all data
+      loadData();
     } catch (error) {
       console.error("Error updating event:", error);
       alert("Erro ao atualizar evento. Por favor, tente novamente.");
@@ -123,10 +126,8 @@ export default function AdminDashboard() {
         id,
         newStatus,
       );
-      setRegistrations((prevRegistrations) =>
-        prevRegistrations.map((reg) =>
-          reg.id === id ? updatedRegistration : reg,
-        ),
+      setRegistrations(
+        registrations.map((reg) => (reg.id === id ? updatedRegistration : reg)),
       );
     } catch (error) {
       console.error("Error updating status:", error);
@@ -140,10 +141,8 @@ export default function AdminDashboard() {
         id,
         newPaymentStatus,
       );
-      setRegistrations((prevRegistrations) =>
-        prevRegistrations.map((reg) =>
-          reg.id === id ? updatedRegistration : reg,
-        ),
+      setRegistrations(
+        registrations.map((reg) => (reg.id === id ? updatedRegistration : reg)),
       );
     } catch (error) {
       console.error("Error updating payment:", error);
@@ -167,6 +166,25 @@ export default function AdminDashboard() {
       alert("Erro ao exportar inscrições. Por favor, tente novamente.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>Carregando...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <Button onClick={loadData}>Tentar Novamente</Button>
+        </div>
+      </div>
+    );
+  }
 
   const pendingRegistrations = registrations.filter(
     (reg) => reg.status === "pendente",

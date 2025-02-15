@@ -6,19 +6,24 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const events = await Event.findAll();
-    res.json(events);
+    console.log("Events found:", events); // Debug log
+    res.json(events || []);
   } catch (error) {
     console.error("Error fetching events:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
   }
 });
 
 router.post("/", async (req, res) => {
   try {
+    console.log("Creating event with data:", req.body); // Debug log
     const eventData = {
       name: req.body.name,
       description: req.body.description,
-      date: req.body.date,
+      date: new Date(req.body.date),
       price: parseFloat(req.body.price),
       capacity: parseInt(req.body.capacity),
       location: {
@@ -27,10 +32,14 @@ router.post("/", async (req, res) => {
     };
 
     const event = await Event.create(eventData);
+    console.log("Event created:", event); // Debug log
     res.status(201).json(event);
   } catch (error) {
     console.error("Error creating event:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: "Error creating event",
+      details: error.message,
+    });
   }
 });
 
@@ -39,7 +48,7 @@ router.put("/:id", async (req, res) => {
     const eventData = {
       name: req.body.name,
       description: req.body.description,
-      date: req.body.date,
+      date: new Date(req.body.date),
       price: parseFloat(req.body.price),
       capacity: parseInt(req.body.capacity),
       location: {
@@ -59,7 +68,10 @@ router.put("/:id", async (req, res) => {
     }
   } catch (error) {
     console.error("Error updating event:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: "Error updating event",
+      details: error.message,
+    });
   }
 });
 
@@ -75,7 +87,10 @@ router.delete("/:id", async (req, res) => {
     }
   } catch (error) {
     console.error("Error deleting event:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json({
+      error: "Error deleting event",
+      details: error.message,
+    });
   }
 });
 
