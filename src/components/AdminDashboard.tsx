@@ -1,14 +1,6 @@
 import React from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/table";
 import { Badge } from "./ui/badge";
 import {
   Plus,
@@ -28,7 +20,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent } from "./ui/dialog";
 import EventCreationForm from "./EventCreationForm";
 import RegistrationTable from "./RegistrationTable";
 import {
@@ -36,8 +28,6 @@ import {
   getPaymentStatusBadgeColor,
 } from "@/lib/registration-utils";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "./ui/checkbox";
-import { Label } from "./ui/label";
 import * as XLSX from "xlsx";
 import { api } from "@/lib/api";
 
@@ -46,7 +36,7 @@ interface Event {
   name: string;
   date: string;
   price: number;
-  capacity: string;
+  capacity: number;
   location: {
     latitude: number;
     longitude: number;
@@ -69,7 +59,6 @@ interface Registration {
   eventName: string;
   status: "pendente" | "confirmado" | "cancelado";
   paymentStatus: "não pago" | "pago";
-  previousPaymentStatus?: "não pago" | "pago";
   amount: number;
   date: string;
 }
@@ -83,49 +72,83 @@ export default function AdminDashboard() {
   const [registrations, setRegistrations] = React.useState<Registration[]>([]);
 
   React.useEffect(() => {
-    api.events.list().then(setEvents);
-    api.registrations.list().then(setRegistrations);
+    loadData();
   }, []);
 
-  const handleCreateEvent = async (data: any) => {
-    const newEvent = await api.events.create(data);
-    setEvents([...events, newEvent]);
-    setShowEventForm(false);
+  const loadData = async () => {
+    try {
+      const [eventsData, registrationsData] = await Promise.all([
+        api.events.list(),
+        api.registrations.list(),
+      ]);
+      setEvents(eventsData);
+      setRegistrations(registrationsData);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+  };
+
+  const handleCreateEvent = async (data: EventFormData) => {
+    try {
+      const newEvent = await api.events.create(data);
+      setEvents([...events, newEvent]);
+      setShowEventForm(false);
+      loadData(); // Reload all data
+    } catch (error) {
+      console.error("Error creating event:", error);
+      alert("Erro ao criar evento. Por favor, tente novamente.");
+    }
   };
 
   const handleUpdateEvent = async (data: any) => {
-    const updatedEvent = await api.events.update(editingEvent?.id!, data);
-    setEvents(
-      events.map((event) =>
-        event.id === editingEvent?.id ? updatedEvent : event,
-      ),
-    );
-    setShowEventForm(false);
-    setEditingEvent(null);
+    try {
+      const updatedEvent = await api.events.update(editingEvent?.id!, data);
+      setEvents(
+        events.map((event) =>
+          event.id === editingEvent?.id ? updatedEvent : event,
+        ),
+      );
+      setShowEventForm(false);
+      setEditingEvent(null);
+      loadData(); // Reload all data
+    } catch (error) {
+      console.error("Error updating event:", error);
+      alert("Erro ao atualizar evento. Por favor, tente novamente.");
+    }
   };
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
-    const updatedRegistration = await api.registrations.updateStatus(
-      id,
-      newStatus,
-    );
-    setRegistrations((prevRegistrations) =>
-      prevRegistrations.map((reg) =>
-        reg.id === id ? updatedRegistration : reg,
-      ),
-    );
+    try {
+      const updatedRegistration = await api.registrations.updateStatus(
+        id,
+        newStatus,
+      );
+      setRegistrations((prevRegistrations) =>
+        prevRegistrations.map((reg) =>
+          reg.id === id ? updatedRegistration : reg,
+        ),
+      );
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("Erro ao atualizar status. Por favor, tente novamente.");
+    }
   };
 
   const handleUpdatePayment = async (id: string, newPaymentStatus: string) => {
-    const updatedRegistration = await api.registrations.updatePayment(
-      id,
-      newPaymentStatus,
-    );
-    setRegistrations((prevRegistrations) =>
-      prevRegistrations.map((reg) =>
-        reg.id === id ? updatedRegistration : reg,
-      ),
-    );
+    try {
+      const updatedRegistration = await api.registrations.updatePayment(
+        id,
+        newPaymentStatus,
+      );
+      setRegistrations((prevRegistrations) =>
+        prevRegistrations.map((reg) =>
+          reg.id === id ? updatedRegistration : reg,
+        ),
+      );
+    } catch (error) {
+      console.error("Error updating payment:", error);
+      alert("Erro ao atualizar pagamento. Por favor, tente novamente.");
+    }
   };
 
   const handleEditEvent = (event: Event) => {
@@ -134,10 +157,15 @@ export default function AdminDashboard() {
   };
 
   const handleExportRegistrations = () => {
-    const ws = XLSX.utils.json_to_sheet(registrations);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Registrations");
-    XLSX.writeFile(wb, "registrations.xlsx");
+    try {
+      const ws = XLSX.utils.json_to_sheet(registrations);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Registrations");
+      XLSX.writeFile(wb, "registrations.xlsx");
+    } catch (error) {
+      console.error("Error exporting registrations:", error);
+      alert("Erro ao exportar inscrições. Por favor, tente novamente.");
+    }
   };
 
   const pendingRegistrations = registrations.filter(
@@ -152,10 +180,10 @@ export default function AdminDashboard() {
 
   const totalRevenue = registrations
     .filter((reg) => reg.paymentStatus === "pago")
-    .reduce((acc, reg) => acc + reg.amount, 0);
+    .reduce((acc, reg) => acc + (reg.amount || 0), 0);
 
   const totalCapacity = events.reduce(
-    (acc, event) => acc + parseInt(event.capacity),
+    (acc, event) => acc + (event.capacity || 0),
     0,
   );
 
@@ -297,96 +325,11 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>CPF</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Evento</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Pagamento</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Detalhes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {registrations.slice(0, 5).map((registration) => (
-                      <TableRow key={registration.id}>
-                        <TableCell>{registration.fullName}</TableCell>
-                        <TableCell>{registration.cpf}</TableCell>
-                        <TableCell>{registration.phone}</TableCell>
-                        <TableCell>{registration.eventName}</TableCell>
-                        <TableCell>
-                          <Badge
-                            className={getStatusBadgeColor(registration.status)}
-                          >
-                            {registration.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={getPaymentStatusBadgeColor(
-                              registration.paymentStatus,
-                            )}
-                          >
-                            {registration.paymentStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          R$ {registration.amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>{registration.date}</TableCell>
-                        <TableCell>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <FileText className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">
-                                  Detalhes da Inscrição
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <p className="font-semibold">Endereço:</p>
-                                    <p>
-                                      {registration.address},{" "}
-                                      {registration.number}
-                                    </p>
-                                    <p>{registration.neighborhood}</p>
-                                  </div>
-                                  <div>
-                                    <p className="font-semibold">
-                                      Menor de idade:
-                                    </p>
-                                    <p>
-                                      {registration.isMinor === "sim"
-                                        ? "Sim"
-                                        : "Não"}
-                                    </p>
-                                  </div>
-                                  <div className="col-span-2">
-                                    <p className="font-semibold">Alergias:</p>
-                                    <p>
-                                      {registration.hasAllergies === "sim"
-                                        ? registration.allergiesNotes ||
-                                          "Sim (sem detalhes)"
-                                        : "Não"}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <RegistrationTable
+                  registrations={registrations.slice(0, 5)}
+                  onUpdateStatus={handleUpdateStatus}
+                  onUpdatePayment={handleUpdatePayment}
+                />
               </Card>
             </div>
           )}
@@ -459,11 +402,11 @@ export default function AdminDashboard() {
                       <div className="space-y-2 text-sm">
                         <p>
                           <span className="font-medium">Data:</span>{" "}
-                          {event.date}
+                          {new Date(event.date).toLocaleDateString()}
                         </p>
                         <p>
                           <span className="font-medium">Preço:</span> R${" "}
-                          {event.price.toFixed(2)}
+                          {event.price?.toFixed(2)}
                         </p>
                         <p>
                           <span className="font-medium">Capacidade:</span>{" "}
@@ -471,7 +414,7 @@ export default function AdminDashboard() {
                         </p>
                         <p>
                           <span className="font-medium">Local:</span>{" "}
-                          {event.location.address}
+                          {event.location?.address}
                         </p>
                       </div>
                     </div>
@@ -484,7 +427,7 @@ export default function AdminDashboard() {
       </div>
 
       <Dialog open={showEventForm} onOpenChange={setShowEventForm}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent>
           <EventCreationForm
             onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
             initialData={editingEvent || undefined}
