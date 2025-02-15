@@ -35,3 +35,8 @@ export const Event = sequelize.define("Event", {
     },
   },
 });
+
+// Sync the model with the database
+Event.sync({ alter: true }).then(() => {
+  console.log("Event model synchronized");
+});
