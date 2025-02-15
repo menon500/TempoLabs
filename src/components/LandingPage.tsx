@@ -10,8 +10,8 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({
-  eventTitle = "Conferência Tech 2024",
-  eventDescription = "Junte-se a nós na conferência de tecnologia mais emocionante do ano. Faça networking com líderes da indústria, aprenda com especialistas e descubra as últimas inovações.",
+  eventTitle = "",
+  eventDescription = "",
 }: LandingPageProps) {
   const { backgroundImage } = useEventStore();
   const navigate = useNavigate();

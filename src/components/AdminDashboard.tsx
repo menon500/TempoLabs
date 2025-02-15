@@ -2,6 +2,15 @@ import React from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import { Badge } from "./ui/badge";
+import {
   Plus,
   LogOut,
   Edit,
@@ -14,134 +23,108 @@ import {
   Wallet,
   FileSpreadsheet,
   Download,
+  Ban,
+  FileText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 import EventCreationForm from "./EventCreationForm";
 import RegistrationTable from "./RegistrationTable";
+import {
+  getStatusBadgeColor,
+  getPaymentStatusBadgeColor,
+} from "@/lib/registration-utils";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import * as XLSX from "xlsx";
-
-interface AdminDashboardProps {
-  isOpen?: boolean;
-}
+import { api } from "@/lib/api";
 
 interface Event {
   id: string;
-  title: string;
-  description: string;
-  date: Date;
-  price: string;
+  name: string;
+  date: string;
+  price: number;
   capacity: string;
-  location: string;
-  backgroundImage?: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    address: string;
+  };
 }
 
-const AdminDashboard = ({ isOpen = true }: AdminDashboardProps) => {
+interface Registration {
+  id: string;
+  fullName: string;
+  cpf: string;
+  phone: string;
+  address: string;
+  neighborhood: string;
+  number: string;
+  isMinor: "sim" | "nao";
+  minorDocument?: string;
+  hasAllergies: "sim" | "nao";
+  allergiesNotes?: string;
+  eventName: string;
+  status: "pendente" | "confirmado" | "cancelado";
+  paymentStatus: "não pago" | "pago";
+  previousPaymentStatus?: "não pago" | "pago";
+  amount: number;
+  date: string;
+}
+
+export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = React.useState("dashboard");
   const [showEventForm, setShowEventForm] = React.useState(false);
-  const [showReportDialog, setShowReportDialog] = React.useState(false);
   const [editingEvent, setEditingEvent] = React.useState<Event | null>(null);
-  const [reportOptions, setReportOptions] = React.useState({
-    includePersonalInfo: true,
-    includePaymentInfo: true,
-    includeEventDetails: true,
-    onlyConfirmed: false,
-  });
+  const [selectedTab, setSelectedTab] = React.useState("dashboard");
+  const [events, setEvents] = React.useState<Event[]>([]);
+  const [registrations, setRegistrations] = React.useState<Registration[]>([]);
 
-  const [events, setEvents] = React.useState<Event[]>([
-    {
-      id: "1",
-      title: "Conferência de Verão 2024",
-      description: "Uma conferência incrível",
-      date: new Date("2024-06-15"),
-      price: "299.99",
-      capacity: "100",
-      location: "São Paulo, SP",
-      backgroundImage:
-        "https://images.unsplash.com/photo-1540575467063-178a50c2df87",
-    },
-    {
-      id: "2",
-      title: "Workshop de Tecnologia",
-      description: "Workshop hands-on",
-      date: new Date("2024-07-01"),
-      price: "149.99",
-      capacity: "50",
-      location: "Rio de Janeiro, RJ",
-      backgroundImage:
-        "https://images.unsplash.com/photo-1540575467063-178a50c2df87",
-    },
-  ]);
+  React.useEffect(() => {
+    api.events.list().then(setEvents);
+    api.registrations.list().then(setRegistrations);
+  }, []);
 
-  const [registrations, setRegistrations] = React.useState([
-    {
-      id: "1",
-      name: "João Silva",
-      email: "joao@exemplo.com",
-      eventName: "Conferência de Verão 2024",
-      status: "pendente",
-      paymentStatus: "não pago",
-      previousPaymentStatus: "não pago",
-      amount: 299.99,
-      date: "2024-06-15",
-    },
-    {
-      id: "2",
-      name: "Maria Santos",
-      email: "maria@exemplo.com",
-      eventName: "Workshop de Tecnologia",
-      status: "pendente",
-      paymentStatus: "não pago",
-      previousPaymentStatus: "não pago",
-      amount: 149.99,
-      date: "2024-07-01",
-    },
-    {
-      id: "3",
-      name: "Roberto Oliveira",
-      email: "roberto@exemplo.com",
-      eventName: "Evento de Networking",
-      status: "confirmado",
-      paymentStatus: "pago",
-      previousPaymentStatus: "não pago",
-      amount: 99.99,
-      date: "2024-08-30",
-    },
-  ]);
+  const handleCreateEvent = async (data: any) => {
+    const newEvent = await api.events.create(data);
+    setEvents([...events, newEvent]);
+    setShowEventForm(false);
+  };
 
-  const handleUpdateStatus = (id: string, newStatus: string) => {
+  const handleUpdateEvent = async (data: any) => {
+    const updatedEvent = await api.events.update(editingEvent?.id!, data);
+    setEvents(
+      events.map((event) =>
+        event.id === editingEvent?.id ? updatedEvent : event,
+      ),
+    );
+    setShowEventForm(false);
+    setEditingEvent(null);
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    const updatedRegistration = await api.registrations.updateStatus(
+      id,
+      newStatus,
+    );
     setRegistrations((prevRegistrations) =>
-      prevRegistrations.map((reg) => {
-        if (reg.id === id) {
-          return {
-            ...reg,
-            status: newStatus,
-            paymentStatus:
-              newStatus === "pendente" ? "não pago" : reg.paymentStatus,
-          };
-        }
-        return reg;
-      }),
+      prevRegistrations.map((reg) =>
+        reg.id === id ? updatedRegistration : reg,
+      ),
     );
   };
 
-  const handleUpdatePayment = (id: string, newPaymentStatus: string) => {
+  const handleUpdatePayment = async (id: string, newPaymentStatus: string) => {
+    const updatedRegistration = await api.registrations.updatePayment(
+      id,
+      newPaymentStatus,
+    );
     setRegistrations((prevRegistrations) =>
-      prevRegistrations.map((reg) => {
-        if (reg.id === id) {
-          return {
-            ...reg,
-            paymentStatus: newPaymentStatus,
-            previousPaymentStatus: reg.paymentStatus,
-          };
-        }
-        return reg;
-      }),
+      prevRegistrations.map((reg) =>
+        reg.id === id ? updatedRegistration : reg,
+      ),
     );
   };
 
@@ -150,56 +133,21 @@ const AdminDashboard = ({ isOpen = true }: AdminDashboardProps) => {
     setShowEventForm(true);
   };
 
-  const handleExportReport = () => {
-    let dataToExport = registrations;
-
-    // Filter based on options
-    if (reportOptions.onlyConfirmed) {
-      dataToExport = dataToExport.filter((reg) => reg.status === "confirmado");
-    }
-
-    // Create the report data based on selected options
-    const reportData = dataToExport.map((reg) => {
-      const row: any = {};
-
-      if (reportOptions.includePersonalInfo) {
-        row["Nome"] = reg.name;
-        row["Email"] = reg.email;
-      }
-
-      if (reportOptions.includeEventDetails) {
-        row["Evento"] = reg.eventName;
-        row["Data"] = reg.date;
-      }
-
-      if (reportOptions.includePaymentInfo) {
-        row["Status"] = reg.status;
-        row["Status Pagamento"] = reg.paymentStatus;
-        row["Valor"] = reg.amount;
-      }
-
-      return row;
-    });
-
-    // Create workbook and worksheet
+  const handleExportRegistrations = () => {
+    const ws = XLSX.utils.json_to_sheet(registrations);
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(reportData);
     XLSX.utils.book_append_sheet(wb, ws, "Registrations");
-
-    // Generate and download file
-    XLSX.writeFile(
-      wb,
-      `event-registrations-${new Date().toISOString().split("T")[0]}.xlsx`,
-    );
-    setShowReportDialog(false);
+    XLSX.writeFile(wb, "registrations.xlsx");
   };
 
   const pendingRegistrations = registrations.filter(
     (reg) => reg.status === "pendente",
   );
-
   const confirmedRegistrations = registrations.filter(
     (reg) => reg.status === "confirmado",
+  );
+  const canceledRegistrations = registrations.filter(
+    (reg) => reg.status === "cancelado",
   );
 
   const totalRevenue = registrations
@@ -211,348 +159,338 @@ const AdminDashboard = ({ isOpen = true }: AdminDashboardProps) => {
     0,
   );
 
+  const menuItems = [
+    {
+      icon: LayoutDashboard,
+      label: "Dashboard",
+      value: "dashboard",
+    },
+    {
+      icon: ClipboardList,
+      label: "Inscrições Pendentes",
+      value: "pending",
+      count: pendingRegistrations.length,
+    },
+    {
+      icon: CheckCircle,
+      label: "Inscrições Confirmadas",
+      value: "confirmed",
+      count: confirmedRegistrations.length,
+    },
+    {
+      icon: Ban,
+      label: "Inscrições Canceladas",
+      value: "canceled",
+      count: canceledRegistrations.length,
+    },
+    {
+      icon: Calendar,
+      label: "Eventos",
+      value: "events",
+      count: events.length,
+    },
+  ];
+
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div className="w-64 border-r bg-card p-4 space-y-4">
-        <div className="flex items-center gap-2 mb-8">
-          <h2 className="text-lg font-semibold">Painel Admin</h2>
-        </div>
+    <div className="min-h-screen bg-background">
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-card border-r min-h-screen p-4 space-y-4">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold">Admin</h2>
+            <ThemeToggle />
+          </div>
 
-        <nav className="space-y-2">
-          <Button
-            variant={activeTab === "dashboard" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start",
-              activeTab === "dashboard" && "bg-muted",
-            )}
-            onClick={() => setActiveTab("dashboard")}
-          >
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            Dashboard
-          </Button>
-
-          <Button
-            variant={activeTab === "registrations" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start",
-              activeTab === "registrations" && "bg-muted",
-            )}
-            onClick={() => setActiveTab("registrations")}
-          >
-            <ClipboardList className="mr-2 h-4 w-4" />
-            Inscrições Pendentes
-          </Button>
-
-          <Button
-            variant={activeTab === "confirmed" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start",
-              activeTab === "confirmed" && "bg-muted",
-            )}
-            onClick={() => setActiveTab("confirmed")}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Inscrições Confirmadas
-          </Button>
+          <div className="space-y-2">
+            {menuItems.map((item) => (
+              <Button
+                key={item.value}
+                variant={selectedTab === item.value ? "default" : "ghost"}
+                className={cn(
+                  "w-full justify-start",
+                  selectedTab === item.value
+                    ? "bg-primary text-primary-foreground"
+                    : "",
+                )}
+                onClick={() => setSelectedTab(item.value)}
+              >
+                <item.icon className="mr-2 h-4 w-4" />
+                {item.label}
+                {item.count !== undefined && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-auto bg-background/20"
+                  >
+                    {item.count}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
 
           <Button
-            variant={activeTab === "events" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start",
-              activeTab === "events" && "bg-muted",
-            )}
-            onClick={() => setActiveTab("events")}
-          >
-            <Calendar className="mr-2 h-4 w-4" />
-            Eventos
-          </Button>
-
-          <Button
-            variant={activeTab === "reports" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start",
-              activeTab === "reports" && "bg-muted",
-            )}
-            onClick={() => setShowReportDialog(true)}
-          >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Relatórios
-          </Button>
-        </nav>
-
-        <div className="absolute bottom-4 left-4 right-4 w-56">
-          <Button
-            variant="outline"
-            className="w-full"
+            variant="ghost"
+            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-100"
             onClick={() => navigate("/")}
           >
-            <LogOut className="w-4 h-4 mr-2" />
+            <LogOut className="mr-2 h-4 w-4" />
             Sair
           </Button>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6 overflow-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">
-            {activeTab === "dashboard" && "Dashboard"}
-            {activeTab === "registrations" && "Inscrições Pendentes"}
-            {activeTab === "confirmed" && "Inscrições Confirmadas"}
-            {activeTab === "events" && "Eventos"}
-          </h1>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            {activeTab === "events" && (
-              <Dialog
-                open={showEventForm}
-                onOpenChange={(open) => {
-                  setShowEventForm(open);
-                  if (!open) setEditingEvent(null);
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button>
-                    {editingEvent ? (
-                      <Edit className="w-4 h-4 mr-2" />
-                    ) : (
-                      <Plus className="w-4 h-4 mr-2" />
-                    )}
-                    {editingEvent ? "Editar Evento" : "Criar Evento"}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <EventCreationForm
-                    initialData={editingEvent}
-                    onSubmit={(data) => {
-                      if (editingEvent) {
-                        setEvents((prevEvents) =>
-                          prevEvents.map((event) =>
-                            event.id === editingEvent.id
-                              ? { ...event, ...data }
-                              : event,
-                          ),
-                        );
-                      } else {
-                        setEvents((prevEvents) => [
-                          ...prevEvents,
-                          { ...data, id: String(prevEvents.length + 1) },
-                        ]);
-                      }
-                      setShowEventForm(false);
-                      setEditingEvent(null);
-                    }}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        </div>
+        {/* Main Content */}
+        <div className="flex-1 p-6">
+          {selectedTab === "dashboard" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <Users className="h-10 w-10 text-blue-500" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Total de Inscrições
+                      </p>
+                      <h3 className="text-2xl font-bold">
+                        {registrations.length}
+                      </h3>
+                    </div>
+                  </div>
+                </Card>
 
-        {/* Report Dialog */}
-        <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-          <DialogContent className="sm:max-w-[425px]">
-            <div className="grid gap-4 py-4">
-              <h2 className="text-lg font-semibold">Exportar Relatório</h2>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="personal-info"
-                    checked={reportOptions.includePersonalInfo}
-                    onCheckedChange={(checked) =>
-                      setReportOptions((prev) => ({
-                        ...prev,
-                        includePersonalInfo: checked as boolean,
-                      }))
-                    }
-                  />
-                  <Label htmlFor="personal-info">Informações Pessoais</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="payment-info"
-                    checked={reportOptions.includePaymentInfo}
-                    onCheckedChange={(checked) =>
-                      setReportOptions((prev) => ({
-                        ...prev,
-                        includePaymentInfo: checked as boolean,
-                      }))
-                    }
-                  />
-                  <Label htmlFor="payment-info">Informações de Pagamento</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="event-details"
-                    checked={reportOptions.includeEventDetails}
-                    onCheckedChange={(checked) =>
-                      setReportOptions((prev) => ({
-                        ...prev,
-                        includeEventDetails: checked as boolean,
-                      }))
-                    }
-                  />
-                  <Label htmlFor="event-details">Detalhes do Evento</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="only-confirmed"
-                    checked={reportOptions.onlyConfirmed}
-                    onCheckedChange={(checked) =>
-                      setReportOptions((prev) => ({
-                        ...prev,
-                        onlyConfirmed: checked as boolean,
-                      }))
-                    }
-                  />
-                  <Label htmlFor="only-confirmed">
-                    Apenas Inscrições Confirmadas
-                  </Label>
-                </div>
+                <Card className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <Wallet className="h-10 w-10 text-green-500" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Receita Total
+                      </p>
+                      <h3 className="text-2xl font-bold">
+                        R$ {totalRevenue.toFixed(2)}
+                      </h3>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <TrendingUp className="h-10 w-10 text-purple-500" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Capacidade Total
+                      </p>
+                      <h3 className="text-2xl font-bold">{totalCapacity}</h3>
+                    </div>
+                  </div>
+                </Card>
               </div>
-              <Button onClick={handleExportReport} className="mt-4">
-                <Download className="w-4 h-4 mr-2" />
-                Exportar Excel
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
 
-        {/* Content based on active tab */}
-        {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Total Revenue Card */}
               <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">Receita Total</h3>
-                  <Wallet className="h-5 w-5 text-green-500" />
-                </div>
-                <div className="text-3xl font-bold mb-2">
-                  R$ {totalRevenue.toFixed(2)}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {
-                    registrations.filter((reg) => reg.paymentStatus === "pago")
-                      .length
-                  }{" "}
-                  pagamentos confirmados
-                </p>
-              </Card>
-
-              {/* Confirmed Registrations Card */}
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">
-                    Inscrições Confirmadas
-                  </h3>
-                  <Users className="h-5 w-5 text-blue-500" />
-                </div>
-                <div className="text-3xl font-bold mb-2">
-                  {confirmedRegistrations.length}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {(
-                    (confirmedRegistrations.length / registrations.length) *
-                    100
-                  ).toFixed(1)}
-                  % do total
-                </p>
-              </Card>
-
-              {/* Events Overview Card */}
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">Eventos Ativos</h3>
-                  <Calendar className="h-5 w-5 text-purple-500" />
-                </div>
-                <div className="text-3xl font-bold mb-2">{events.length}</div>
-                <p className="text-sm text-muted-foreground">
-                  Capacidade total: {totalCapacity} pessoas
-                </p>
-              </Card>
-            </div>
-
-            {/* Recent Activity */}
-            <Card className="p-6">
-              <h3 className="text-lg font-medium mb-4">Atividade Recente</h3>
-              <div className="space-y-4">
-                <RegistrationTable
-                  registrations={registrations.slice(0, 5)}
-                  onUpdateStatus={handleUpdateStatus}
-                  onUpdatePayment={handleUpdatePayment}
-                />
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {activeTab === "registrations" && (
-          <div className="space-y-4">
-            <div className="bg-yellow-50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-yellow-800 mb-2">
-                Inscrições Pendentes
-              </h2>
-              <p className="text-yellow-700">
-                {pendingRegistrations.length} inscrições aguardando confirmação
-              </p>
-            </div>
-            <RegistrationTable
-              registrations={pendingRegistrations}
-              onUpdateStatus={handleUpdateStatus}
-              onUpdatePayment={handleUpdatePayment}
-            />
-          </div>
-        )}
-
-        {activeTab === "confirmed" && (
-          <div className="space-y-4">
-            <div className="bg-green-50 p-4 rounded-lg mb-4">
-              <h2 className="text-lg font-semibold text-green-800 mb-2">
-                Inscrições Confirmadas
-              </h2>
-              <p className="text-green-700">
-                {confirmedRegistrations.length} inscrições confirmadas
-              </p>
-            </div>
-            <RegistrationTable
-              registrations={confirmedRegistrations}
-              onUpdateStatus={handleUpdateStatus}
-              onUpdatePayment={handleUpdatePayment}
-            />
-          </div>
-        )}
-
-        {activeTab === "events" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {events.map((event) => (
-              <Card key={event.id} className="p-4">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold">{event.title}</h3>
-                  <p className="text-sm text-gray-500">{event.description}</p>
-                  <p className="text-sm">
-                    Data: {event.date.toLocaleDateString()}
-                  </p>
-                  <p className="text-sm">Preço: R$ {event.price}</p>
-                  <p className="text-sm">Capacidade: {event.capacity}</p>
-                  <p className="text-sm">Local: {event.location}</p>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-semibold">Atividades Recentes</h3>
                   <Button
                     variant="outline"
-                    className="w-full"
-                    onClick={() => handleEditEvent(event)}
+                    size="sm"
+                    onClick={handleExportRegistrations}
                   >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Editar
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Exportar
                   </Button>
                 </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>CPF</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Evento</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Detalhes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {registrations.slice(0, 5).map((registration) => (
+                      <TableRow key={registration.id}>
+                        <TableCell>{registration.fullName}</TableCell>
+                        <TableCell>{registration.cpf}</TableCell>
+                        <TableCell>{registration.phone}</TableCell>
+                        <TableCell>{registration.eventName}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={getStatusBadgeColor(registration.status)}
+                          >
+                            {registration.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={getPaymentStatusBadgeColor(
+                              registration.paymentStatus,
+                            )}
+                          >
+                            {registration.paymentStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          R$ {registration.amount.toFixed(2)}
+                        </TableCell>
+                        <TableCell>{registration.date}</TableCell>
+                        <TableCell>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md">
+                              <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">
+                                  Detalhes da Inscrição
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="font-semibold">Endereço:</p>
+                                    <p>
+                                      {registration.address},{" "}
+                                      {registration.number}
+                                    </p>
+                                    <p>{registration.neighborhood}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold">
+                                      Menor de idade:
+                                    </p>
+                                    <p>
+                                      {registration.isMinor === "sim"
+                                        ? "Sim"
+                                        : "Não"}
+                                    </p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <p className="font-semibold">Alergias:</p>
+                                    <p>
+                                      {registration.hasAllergies === "sim"
+                                        ? registration.allergiesNotes ||
+                                          "Sim (sem detalhes)"
+                                        : "Não"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </Card>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+
+          {selectedTab === "pending" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Inscrições Pendentes</h2>
+              </div>
+              <RegistrationTable
+                registrations={pendingRegistrations}
+                onUpdateStatus={handleUpdateStatus}
+                onUpdatePayment={handleUpdatePayment}
+                showManualRegistration
+              />
+            </div>
+          )}
+
+          {selectedTab === "confirmed" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Inscrições Confirmadas</h2>
+              </div>
+              <RegistrationTable
+                registrations={confirmedRegistrations}
+                onUpdateStatus={handleUpdateStatus}
+                onUpdatePayment={handleUpdatePayment}
+                showCancelButton
+              />
+            </div>
+          )}
+
+          {selectedTab === "canceled" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Inscrições Canceladas</h2>
+              </div>
+              <RegistrationTable
+                registrations={canceledRegistrations}
+                onUpdateStatus={handleUpdateStatus}
+                onUpdatePayment={handleUpdatePayment}
+              />
+            </div>
+          )}
+
+          {selectedTab === "events" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Eventos</h2>
+                <Button onClick={() => setShowEventForm(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Evento
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {events.map((event) => (
+                  <Card key={event.id} className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-lg font-semibold">{event.name}</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditEvent(event)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="font-medium">Data:</span>{" "}
+                          {event.date}
+                        </p>
+                        <p>
+                          <span className="font-medium">Preço:</span> R${" "}
+                          {event.price.toFixed(2)}
+                        </p>
+                        <p>
+                          <span className="font-medium">Capacidade:</span>{" "}
+                          {event.capacity} pessoas
+                        </p>
+                        <p>
+                          <span className="font-medium">Local:</span>{" "}
+                          {event.location.address}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      <Dialog open={showEventForm} onOpenChange={setShowEventForm}>
+        <DialogContent className="max-w-3xl">
+          <EventCreationForm
+            onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
+            initialData={editingEvent || undefined}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
-
-export default AdminDashboard;
+}
