@@ -1,8 +1,12 @@
+import type { Event, Registration, ApiError } from "@/types/api";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
-const handleResponse = async (response: Response) => {
+const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
-    const error = await response.json();
+    const error = (await response.json().catch(() => ({
+      error: "Network response was not ok",
+    }))) as ApiError;
     throw new Error(
       error.details || error.error || "Network response was not ok",
     );
@@ -10,51 +14,73 @@ const handleResponse = async (response: Response) => {
   return response.json();
 };
 
+const handleRequest = async <T>(
+  url: string,
+  options?: RequestInit,
+): Promise<T> => {
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+    return await handleResponse<T>(response);
+  } catch (error) {
+    console.error(`API Error (${url}):`, error);
+    throw error;
+  }
+};
+
 export const api = {
   events: {
     list: () =>
-      fetch(`${API_URL}/events`)
-        .then(handleResponse)
-        .then((data) => (Array.isArray(data) ? data : [])),
-    create: (data: any) =>
-      fetch(`${API_URL}/events`, {
+      handleRequest<Event[]>(`${API_URL}/events`).then((data) =>
+        Array.isArray(data) ? data : [],
+      ),
+    create: (data: Omit<Event, "id" | "createdAt" | "updatedAt">) =>
+      handleRequest<Event>(`${API_URL}/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then(handleResponse),
-    update: (id: string, data: any) =>
-      fetch(`${API_URL}/events/${id}`, {
+      }),
+    update: (
+      id: string,
+      data: Partial<Omit<Event, "id" | "createdAt" | "updatedAt">>,
+    ) =>
+      handleRequest<Event>(`${API_URL}/events/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then(handleResponse),
+      }),
     delete: (id: string) =>
-      fetch(`${API_URL}/events/${id}`, {
+      handleRequest<void>(`${API_URL}/events/${id}`, {
         method: "DELETE",
-      }).then(handleResponse),
+      }),
   },
   registrations: {
     list: () =>
-      fetch(`${API_URL}/registrations`)
-        .then(handleResponse)
-        .then((data) => (Array.isArray(data) ? data : [])),
-    create: (data: any) =>
-      fetch(`${API_URL}/registrations`, {
+      handleRequest<Registration[]>(`${API_URL}/registrations`).then((data) =>
+        Array.isArray(data) ? data : [],
+      ),
+    create: (
+      data: Omit<
+        Registration,
+        "id" | "createdAt" | "updatedAt" | "status" | "paymentStatus"
+      >,
+    ) =>
+      handleRequest<Registration>(`${API_URL}/registrations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then(handleResponse),
-    updateStatus: (id: string, status: string) =>
-      fetch(`${API_URL}/registrations/${id}/status`, {
+      }),
+    updateStatus: (id: string, status: Registration["status"]) =>
+      handleRequest<Registration>(`${API_URL}/registrations/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
-      }).then(handleResponse),
-    updatePayment: (id: string, paymentStatus: string) =>
-      fetch(`${API_URL}/registrations/${id}/payment`, {
+      }),
+    updatePayment: (id: string, paymentStatus: Registration["paymentStatus"]) =>
+      handleRequest<Registration>(`${API_URL}/registrations/${id}/payment`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentStatus }),
-      }).then(handleResponse),
+      }),
   },
 };

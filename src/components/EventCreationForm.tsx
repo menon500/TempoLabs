@@ -11,7 +11,6 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
 
 const eventFormSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -75,15 +74,13 @@ export default function EventCreationForm({
 
   return (
     <div className="space-y-4 max-h-[80vh] overflow-y-auto p-4">
-      <DialogHeader>
-        <DialogTitle>
-          {initialData ? "Editar Evento" : "Criar Novo Evento"}
-        </DialogTitle>
-        <DialogDescription>
-          Preencha os detalhes do evento abaixo. Todos os campos marcados com *
-          são obrigatórios.
-        </DialogDescription>
-      </DialogHeader>
+      <h2 className="text-lg font-semibold">
+        {initialData ? "Editar Evento" : "Criar Novo Evento"}
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        Preencha os detalhes do evento abaixo. Todos os campos marcados com *
+        são obrigatórios.
+      </p>
 
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <div className="space-y-2">

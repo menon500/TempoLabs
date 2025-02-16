@@ -16,19 +16,9 @@ export const Registration = sequelize.define("Registration", {
       key: "id",
     },
   },
-  amount: {
-    type: DataTypes.DECIMAL(10, 2),
+  eventName: {
+    type: DataTypes.STRING,
     allowNull: false,
-  },
-  date: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-    allowNull: false,
-  },
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
   },
   fullName: {
     type: DataTypes.STRING,
@@ -73,12 +63,28 @@ export const Registration = sequelize.define("Registration", {
   status: {
     type: DataTypes.ENUM("pendente", "confirmado", "cancelado"),
     defaultValue: "pendente",
+    allowNull: false,
   },
   paymentStatus: {
     type: DataTypes.ENUM("não pago", "pago"),
     defaultValue: "não pago",
+    allowNull: false,
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  date: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+    allowNull: false,
   },
 });
 
 Registration.belongsTo(Event);
 Event.hasMany(Registration);
+
+// Sync the model with the database
+Registration.sync({ alter: true }).then(() => {
+  console.log("Registration model synchronized");
+});
